@@ -4,8 +4,9 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon app.js"
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
@@ -26,18 +27,17 @@
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^6.9.16",
-    "nodemon": "^3.1.9",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pdf-lib": "^1.17.1",
     "streamifier": "^0.1.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "swiper": "^11.2.6",
-    "ve-course-backend": "file:"
+    "swiper": "^11.2.6"
   },
   "devDependencies": {
     "jest": "^29.7.0",
+    "nodemon": "^3.1.9",
     "supertest": "^7.0.0"
   }
 }
