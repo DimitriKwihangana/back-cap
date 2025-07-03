@@ -29,7 +29,7 @@ const app = express();
 
 app.use(cors({
 
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'https://learning-platform-front-end.vercel.app', 'https://adminlearn.netlify.app'], // Allow both
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'https://aflaguard.netlify.app/'], // Allow both
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true
   }));
