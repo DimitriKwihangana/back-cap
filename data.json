@@ -1,0 +1,57 @@
+{
+    "title": "Full-Stack Web Development",
+    "description": "Learn to build web applications from scratch.",
+    "instructor": "64b3456789abcd123456efgh",
+    "modules": [
+      {
+        "title": "Frontend Development",
+        "description": "Learn HTML, CSS, and JavaScript.",
+        "submodules": [
+          {
+            "title": "HTML Basics",
+            "lessons": [
+              {
+                "title": "Introduction to HTML",
+                "description":"Learn HTML, CSS, and JavaScript.",
+                "videoUrl": "https://example.com/videos/html-intro",
+                "resources": ["https://example.com/resources/html-cheatsheet.pdf"]
+              },
+              {
+                "title": "HTML Elements",
+                "videoUrl": "https://example.com/videos/html-elements",
+                "resources": []
+              }
+            ]
+          },
+          {
+            "title": "CSS Basics",
+            "lessons": [
+              {
+                "title": "Introduction to CSS",
+                "videoUrl": "https://example.com/videos/css-intro",
+                "resources": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Backend Development",
+        "description": "Learn Node.js and Express.",
+        "submodules": [
+          {
+            "title": "Introduction to Node.js",
+            "lessons": [
+              {
+                "title": "What is Node.js?",
+                "videoUrl": "https://example.com/videos/nodejs-intro",
+                "resources": []
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "enrolledStudents": ["64c3456789abcd123456ijkl"]
+  }
+  

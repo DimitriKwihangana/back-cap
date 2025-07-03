@@ -1,0 +1,161 @@
+### Create a Course
+POST http://localhost:3000/api/course
+Content-Type: application/json
+
+{
+    "title": "Introduction to language",
+    "image": "uploads/course_image.jpg",
+    "description": "Learn the basics of programming in Python.",
+    "instructor": "676e98361ad7357c21061a86",
+    "modules": ["676fab208bd50df90cc53ca7"],
+    "enrolledStudents": ["676e8ca5797f57c3f8f1a1ed", "676e941e797f57c3f8f1a1f0"],
+    "category": "Programming",
+    "level": "Beginner"
+}
+
+###
+
+### Get All Courses
+GET http://localhost:3000/api/course
+Content-Type: application/json
+
+###
+
+### Get a Course by ID
+GET http://localhost:3000/api/course/676fb1d6f2898ddc73cddfea
+Content-Type: application/json
+
+###
+
+### Update a Course
+PUT http://localhost:3000/api/course/676fb1d6f2898ddc73cddfea
+Content-Type: application/json
+
+{
+    "title": "Advanced Programming",
+    "image": "uploads/updated_course_image.jpg",
+    "description": "Learn advanced programming concepts.",
+    "instructor": "676e98361ad7357c21061a86",
+    "modules": ["676fab208bd50df90cc53ca7", "676fab208bd50df90cc53ca8"],
+    "enrolledStudents": ["676e8ca5797f57c3f8f1a1ed"],
+    "category": "Programming",
+    "level": "Intermediate"
+}
+
+###
+
+### Delete a Course
+DELETE http://localhost:3000/api/course/676fb1d6f2898ddc73cddfea
+Content-Type: application/json
+
+
+
+
+
+
+### Create a CourseModule
+POST http://localhost:3000/api/modules
+Content-Type: application/json
+
+{
+    "title": "Advanced Business Management",
+    "description": "An advanced course on programming concepts",
+    "submodules": ["676f9c39b692c0d0538f7f2e", "676f9eb54c0ae073e0cc996f"],
+    "quiz": {
+        "title": "What is a closure in JavaScript?",
+        "options": ["A function inside another function", "A loop", "A variable"],
+        "answer": "A function inside another function"
+    }
+}
+
+###
+
+### Get All CourseModules
+GET http://localhost:3000/api/modules
+Content-Type: application/json
+
+###
+
+### Get a CourseModule by ID
+GET http://localhost:3000/api/modules/676fab208bd50df90cc53ca7
+Content-Type: application/json
+
+###
+
+### Update a CourseModule
+PUT http://localhost:3000/api/modules/676fab208bd50df90cc53ca7
+Content-Type: application/json
+
+{
+    "title": "Updated Business Management",
+    "description": "An updated description for the business management module.",
+    "submodules": ["676f9c39b692c0d0538f7f2e"],
+    "quiz": {
+        "title": "What is the difference between let and var in JavaScript?",
+        "options": ["Scope", "Usage", "Performance"],
+        "answer": "Scope"
+    }
+}
+
+###
+
+### Delete a CourseModule
+DELETE http://localhost:3000/api/modules/676fab208bd50df90cc53ca7
+Content-Type: application/json
+
+
+
+
+
+
+### Create a SubModule
+POST http://localhost:3000/api/submodules
+Content-Type: application/json
+
+{
+    "title": "Introduction to analytics",
+    "image": "https://example.com/image.png",
+    "lessons": [
+        {
+            "title": "Lesson 1: Basics",
+            "description": "Introduction to programming basics.",
+            "videoUrl": "https://example.com/video1.mp4",
+            "resources": ["https://example.com/resource1.pdf"]
+        }
+    ]
+}
+
+###
+### Get All SubModules
+GET http://localhost:3000/api/submodules
+Content-Type: application/json
+
+###
+### Get a SubModule by ID
+GET http://localhost:3000/api/submodules/676f9c39b692c0d0538f7f2e
+Content-Type: application/json
+
+###
+### Update a SubModule
+PUT http://localhost:3000/api/submodules/676f9c39b692c0d0538f7f2e
+Content-Type: application/json
+
+{
+    "title": "Updated Introduction to Programming",
+    "image": "https://example.com/updated_image.png",
+    "lessons": [
+        {
+            "title": "Lesson 1: Updated Basics",
+            "description": "Updated introduction to programming basics.",
+            "videoUrl": "https://example.com/updated_video1.mp4",
+            "resources": ["https://example.com/updated_resource1.pdf"]
+        }
+    ]
+}
+
+###
+
+### Delete a SubModule
+DELETE http://localhost:3000/api/submodules/676f9c39b692c0d0538f7f2e
+Content-Type: application/json
+
