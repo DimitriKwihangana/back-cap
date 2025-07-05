@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const BatchSchema = new mongoose.Schema({
-    // Batch identification
+    // Batch identification (EXISTING - unchanged)
     batchId: {
         type: String,
         required: true,
@@ -15,9 +15,9 @@ const BatchSchema = new mongoose.Schema({
         required: true,
     },
     
-    // User tracking (now passed in request body)
+    // User tracking (EXISTING - unchanged)
     userId: {
-        type: String, // Changed from ObjectId to String since user will pass it
+        type: String,
         required: true,
     },
     userName: {
@@ -25,7 +25,7 @@ const BatchSchema = new mongoose.Schema({
         required: true,
     },
     
-    // Grain characteristics
+    // Grain characteristics (EXISTING - unchanged)
     moisture_maize_grain: {
         type: String,
         required: true,
@@ -66,7 +66,31 @@ const BatchSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    
+
+    // NEW MARKETPLACE FIELDS ONLY
+    isOnMarket: {
+        type: Boolean,
+        default: false
+    },
+    quantity: {
+        type: Number,
+        min: 0,
+        default: null
+    },
+    availableQuantity: {
+        type: Number,
+        min: 0,
+        default: null
+    },
+    pricePerKg: {
+        type: Number,
+        min: 0,
+        default: null
+    },
+    marketListedAt: {
+        type: Date,
+        default: null
+    }
 }, {
     timestamps: true
 });
