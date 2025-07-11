@@ -1,6 +1,6 @@
 // Enhanced Controller with Email Notifications
 const Batch = require('../models/batch');
-const User = require('../models/user'); // Assuming you have a User model
+const User = require('../models/User'); 
 const nodemailer = require('nodemailer'); // You'll need to install this: npm install nodemailer
 
 // Email configuration (you'll need to set up your email service)
