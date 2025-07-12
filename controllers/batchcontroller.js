@@ -1,9 +1,10 @@
-// Enhanced Controller with Email Notifications
+// Enhanced Controller with Email Notifications + Order Management - FIXED VERSION
 const Batch = require('../models/batch');
 const User = require('../models/User'); 
-const nodemailer = require('nodemailer'); // You'll need to install this: npm install nodemailer
+const Order = require('../models/Order');
+const nodemailer = require('nodemailer');
 
-// Email configuration (you'll need to set up your email service)
+// Email configuration
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -12,10 +13,294 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+const sendOrderNotificationToSeller = async (order, batch) => {
+    try {
+        // Get seller email - check if we have seller's email in User collection
+        let sellerEmail = null;
+        
+        try {
+            const seller = await User.findOne({ 
+                $or: [
+                    { _id: batch.userId },
+                    { name: batch.userName }
+                ]
+            });
+            sellerEmail = seller?.email;
+        } catch (err) {
+            console.log('Could not find seller in User collection, using fallback');
+        }
+
+        // If we don't have seller email, we can't send email
+        if (!sellerEmail) {
+            console.log('⚠️ No seller email found for batch:', batch.batchId);
+            console.log('Seller ID:', batch.userId, 'Seller Name:', batch.userName);
+            return;
+        }
+
+        const emailSubject = `🛒 New Order Received - ${order.orderId}`;
+        const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                    .order-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; }
+                    .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+                    .info-item { background: white; padding: 15px; border-radius: 6px; }
+                    .cta-button { display: inline-block; background: #10b981; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
+                    .status-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: bold; margin: 10px 0; background: #fef3c7; color: #d97706; }
+                    .highlight { font-size: 24px; font-weight: bold; color: #10b981; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🛒 New Order Received!</h1>
+                        <p>You have a new order for your grain batch</p>
+                    </div>
+                    
+                    <div class="content">
+                        <div class="order-info">
+                            <h2>Order Details</h2>
+                            <p><strong>Order ID:</strong> ${order.orderId}</p>
+                            <p><strong>Batch:</strong> ${batch.batchId} (${batch.supplier})</p>
+                            <p><strong>Buyer:</strong> ${order.buyerName}</p>
+                            <p><strong>Buyer Email:</strong> ${order.buyerEmail}</p>
+                            ${order.buyerContact ? `<p><strong>Buyer Phone:</strong> ${order.buyerContact}</p>` : ''}
+                            <p><strong>Order Date:</strong> ${new Date(order.orderDate).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}</p>
+                            
+                            <div class="status-badge">⏳ Status: Pending Your Confirmation</div>
+                        </div>
+
+                        <h3>Order Summary</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <strong>Quantity Ordered</strong><br>
+                                <span class="highlight">${order.quantityOrdered} kg</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Price per kg</strong><br>
+                                <span class="highlight">${order.pricePerKg} Rwf</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Total Amount</strong><br>
+                                <span class="highlight">${order.totalAmount.toLocaleString()} Rwf</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Remaining Stock</strong><br>
+                                <span>${batch.availableQuantity} kg</span>
+                            </div>
+                        </div>
+
+                        ${order.deliveryAddress ? `
+                        <h3>Delivery Address</h3>
+                        <div class="order-info">
+                            <p>${order.deliveryAddress.street}</p>
+                            <p>${order.deliveryAddress.city}${order.deliveryAddress.state ? `, ${order.deliveryAddress.state}` : ''}</p>
+                            <p>${order.deliveryAddress.postalCode || ''} ${order.deliveryAddress.country}</p>
+                        </div>
+                        ` : ''}
+
+                        ${order.notes ? `
+                        <h3>Buyer Notes</h3>
+                        <div class="order-info">
+                            <p><em>"${order.notes}"</em></p>
+                        </div>
+                        ` : ''}
+
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders" class="cta-button">
+                                Manage This Order
+                            </a>
+                        </div>
+
+                        <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                            <strong>Next Steps:</strong><br>
+                            1. Review the order details above<br>
+                            2. Log into your dashboard to confirm or reject the order<br>
+                            3. If confirmed, prepare the grain for shipment<br>
+                            4. Update the order status to keep the buyer informed
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        await transporter.sendMail({
+            from: `"Grain Marketplace" <${process.env.EMAIL_USER}>`,
+            to: sellerEmail,
+            subject: emailSubject,
+            html: emailHtml
+        });
+
+        console.log('✅ Order notification email sent to seller:', sellerEmail);
+
+    } catch (error) {
+        console.error('❌ Error sending order notification to seller:', error);
+        // Don't throw error to prevent order creation from failing
+    }
+};
+
+// Function to send order status update to buyer
+const sendOrderStatusUpdateToBuyer = async (order, newStatus, sellerNotes = '', trackingNumber = '', estimatedDelivery = '') => {
+    try {
+        const statusConfig = {
+            pending: { label: 'Pending', icon: '⏳', color: '#d97706', description: 'Order received and awaiting confirmation' },
+            confirmed: { label: 'Confirmed', icon: '✅', color: '#059669', description: 'Order confirmed and being prepared' },
+            preparing: { label: 'Preparing', icon: '📦', color: '#7c3aed', description: 'Order is being prepared for shipment' },
+            shipped: { label: 'Shipped', icon: '🚚', color: '#0891b2', description: 'Order has been shipped' },
+            delivered: { label: 'Delivered', icon: '🎉', color: '#059669', description: 'Order successfully delivered' },
+            rejected: { label: 'Rejected', icon: '❌', color: '#dc2626', description: 'Order has been rejected' },
+            cancelled: { label: 'Cancelled', icon: '🚫', color: '#6b7280', description: 'Order has been cancelled' }
+        };
+
+        const status = statusConfig[newStatus] || statusConfig.pending;
+        const emailSubject = `${status.icon} Order Update: ${order.orderId} - ${status.label}`;
+        
+        const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                    .order-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6; }
+                    .status-update { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; border: 2px solid ${status.color}; }
+                    .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+                    .info-item { background: white; padding: 15px; border-radius: 6px; text-align: center; }
+                    .cta-button { display: inline-block; background: #3b82f6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
+                    .status-icon { font-size: 48px; margin-bottom: 10px; }
+                    .tracking-box { background: #dbeafe; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>${status.icon} Order Status Update</h1>
+                        <p>Your order has been updated</p>
+                    </div>
+                    
+                    <div class="content">
+                        <div class="status-update">
+                            <div class="status-icon">${status.icon}</div>
+                            <h2 style="color: ${status.color}; margin: 0;">${status.label}</h2>
+                            <p style="margin: 10px 0; color: #666;">${status.description}</p>
+                        </div>
+
+                        <div class="order-info">
+                            <h3>Order Information</h3>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <strong>Order ID</strong><br>
+                                    ${order.orderId}
+                                </div>
+                                <div class="info-item">
+                                    <strong>Batch</strong><br>
+                                    ${order.batchNumber}
+                                </div>
+                                <div class="info-item">
+                                    <strong>Quantity</strong><br>
+                                    ${order.quantityOrdered} kg
+                                </div>
+                                <div class="info-item">
+                                    <strong>Total Amount</strong><br>
+                                    ${order.totalAmount.toLocaleString()} Rwf
+                                </div>
+                            </div>
+                            <p><strong>Order Date:</strong> ${new Date(order.orderDate).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric'
+                            })}</p>
+                            <p><strong>Status Updated:</strong> ${new Date().toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}</p>
+                        </div>
+
+                        ${trackingNumber ? `
+                        <div class="tracking-box">
+                            <h3 style="margin-top: 0;">📍 Tracking Information</h3>
+                            <p><strong>Tracking Number:</strong> <span style="font-family: monospace; font-size: 18px; font-weight: bold;">${trackingNumber}</span></p>
+                            ${estimatedDelivery ? `<p><strong>Estimated Delivery:</strong> ${new Date(estimatedDelivery).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>` : ''}
+                        </div>
+                        ` : ''}
+
+                        ${sellerNotes ? `
+                        <div class="order-info">
+                            <h3>Message from Seller</h3>
+                            <p style="font-style: italic; color: #555;">"${sellerNotes}"</p>
+                        </div>
+                        ` : ''}
+
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/my-orders" class="cta-button">
+                                View Order Details
+                            </a>
+                        </div>
+
+                        ${newStatus === 'confirmed' ? `
+                        <div style="background: #d1fae5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <h4 style="margin-top: 0; color: #059669;">🎉 Great News!</h4>
+                            <p style="margin-bottom: 0;">Your order has been confirmed and will be prepared for shipment. You'll receive another update when it's ready to ship.</p>
+                        </div>
+                        ` : ''}
+
+                        ${newStatus === 'shipped' ? `
+                        <div style="background: #dbeafe; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <h4 style="margin-top: 0; color: #1d4ed8;">🚚 On Its Way!</h4>
+                            <p style="margin-bottom: 0;">Your order is now on its way to you. Use the tracking number above to monitor its progress.</p>
+                        </div>
+                        ` : ''}
+
+                        ${newStatus === 'delivered' ? `
+                        <div style="background: #d1fae5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <h4 style="margin-top: 0; color: #059669;">🎉 Order Complete!</h4>
+                            <p style="margin-bottom: 0;">Your order has been successfully delivered. Thank you for your business! We'd love to hear your feedback.</p>
+                        </div>
+                        ` : ''}
+
+                        <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                            Thank you for choosing our grain marketplace. If you have any questions about your order, please contact the seller or our support team.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        await transporter.sendMail({
+            from: `"Grain Marketplace" <${process.env.EMAIL_USER}>`,
+            to: order.buyerEmail,
+            subject: emailSubject,
+            html: emailHtml
+        });
+
+        console.log(`✅ Status update email sent to buyer: ${order.buyerEmail} (${newStatus})`);
+
+    } catch (error) {
+        console.error('❌ Error sending status update email to buyer:', error);
+        // Don't throw error to prevent status update from failing
+    }
+};
 // Function to send notification emails
 const sendMarketListingNotification = async (batch, listingUser) => {
     try {
-        // Get all users with type 'processor' or 'institution'
         const targetUsers = await User.find({
             type: { $in: ['processor', 'institution'] },
             email: { $exists: true, $ne: null }
@@ -26,7 +311,6 @@ const sendMarketListingNotification = async (batch, listingUser) => {
             return;
         }
 
-        // Create email content
         const emailSubject = `New Quality Grain Batch Available - ${batch.batchId}`;
         const emailHtml = `
             <!DOCTYPE html>
@@ -61,8 +345,8 @@ const sendMarketListingNotification = async (batch, listingUser) => {
                             <p><strong>Supplier:</strong> ${batch.supplier}</p>
                             <p><strong>Listed by:</strong> ${listingUser}</p>
                             <p><strong>Available Quantity:</strong> ${batch.availableQuantity} kg</p>
-                            <p><strong>Price:</strong> $${batch.pricePerKg}/kg</p>
-                            <p><strong>Total Value:</strong> $${(batch.availableQuantity * batch.pricePerKg).toFixed(2)}</p>
+                            <p><strong>Price:</strong> ${batch.pricePerKg} Rwf/kg</p>
+                            <p><strong>Total Value:</strong> ${(batch.availableQuantity * batch.pricePerKg).toFixed(2)} Rwf</p>
                             
                             ${getSafetyBadge(batch.aflatoxin)}
                         </div>
@@ -88,13 +372,13 @@ const sendMarketListingNotification = async (batch, listingUser) => {
                         </div>
 
                         <div style="text-align: center; margin: 30px 0;">
-                            <a href="${process.env.FRONTEND_URL}/marketplace" class="cta-button">
+                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/marketplace" class="cta-button">
                                 View on Marketplace
                             </a>
                         </div>
 
                         <p style="color: #666; font-size: 14px; margin-top: 30px;">
-                            This notification was sent because you are registered as a ${targetUsers[0]?.type} in our system. 
+                            This notification was sent because you are registered as a processor/institution in our system. 
                             <br>Visit our marketplace to view all available batches and place orders.
                         </p>
                     </div>
@@ -103,7 +387,6 @@ const sendMarketListingNotification = async (batch, listingUser) => {
             </html>
         `;
 
-        // Send emails to all target users
         const emailPromises = targetUsers.map(user => {
             return transporter.sendMail({
                 from: `"Grain Marketplace" <${process.env.EMAIL_USER}>`,
@@ -118,7 +401,6 @@ const sendMarketListingNotification = async (batch, listingUser) => {
 
     } catch (error) {
         console.error('Error sending notification emails:', error);
-        // Don't throw error to prevent batch listing from failing
     }
 };
 
@@ -140,7 +422,6 @@ const getSafetyBadge = (aflatoxin) => {
 // Create a new batch
 const createBatch = async (req, res) => {
     try {
-        // Now all data comes from req.body, including userId and userName
         const batchData = {
             batchId: req.body.batchId,
             supplier: req.body.supplier,
@@ -157,7 +438,6 @@ const createBatch = async (req, res) => {
             Liveinfestation: req.body.Liveinfestation,
             abnormal_odours_maize_grain: req.body.abnormal_odours_maize_grain,
             aflatoxin: req.body.aflatoxin,
-            // Marketplace fields (optional during creation)
             isOnMarket: req.body.isOnMarket || false,
             quantity: req.body.quantity || null,
             availableQuantity: req.body.quantity || null,
@@ -165,7 +445,6 @@ const createBatch = async (req, res) => {
             marketListedAt: req.body.isOnMarket ? new Date() : null
         };
 
-        // Validate required fields
         const requiredFields = [
             'batchId', 'supplier', 'date', 'userId', 'userName',
             'moisture_maize_grain', 'Immaturegrains', 'Discolored_grains',
@@ -182,7 +461,6 @@ const createBatch = async (req, res) => {
             });
         }
 
-        // Validate binary fields
         if (req.body.Liveinfestation !== 0 && req.body.Liveinfestation !== 1) {
             return res.status(400).json({
                 success: false,
@@ -197,7 +475,6 @@ const createBatch = async (req, res) => {
             });
         }
 
-        // Validate marketplace fields if being listed on market
         if (req.body.isOnMarket) {
             if (!req.body.quantity || req.body.quantity <= 0) {
                 return res.status(400).json({
@@ -216,7 +493,6 @@ const createBatch = async (req, res) => {
         const newBatch = new Batch(batchData);
         const savedBatch = await newBatch.save();
 
-        // Send email notifications if batch is listed on market during creation
         if (req.body.isOnMarket) {
             await sendMarketListingNotification(savedBatch, req.body.userName);
         }
@@ -235,13 +511,12 @@ const createBatch = async (req, res) => {
     }
 };
 
-// Put batch on market (ENHANCED WITH EMAIL NOTIFICATIONS)
+// Put batch on market
 const putBatchOnMarket = async (req, res) => {
     try {
         const batchId = req.params.id;
         const { quantity, pricePerKg } = req.body;
 
-        // Validate required marketplace fields
         if (!quantity || quantity <= 0) {
             return res.status(400).json({
                 success: false,
@@ -265,7 +540,6 @@ const putBatchOnMarket = async (req, res) => {
             });
         }
 
-        // Check if batch is already on market
         if (batch.isOnMarket) {
             return res.status(400).json({
                 success: false,
@@ -273,7 +547,6 @@ const putBatchOnMarket = async (req, res) => {
             });
         }
 
-        // Update batch with marketplace information
         const updatedBatch = await Batch.findByIdAndUpdate(
             batchId,
             {
@@ -286,7 +559,6 @@ const putBatchOnMarket = async (req, res) => {
             { new: true, runValidators: true }
         );
 
-        // Send email notifications to processors and institutions
         await sendMarketListingNotification(updatedBatch, batch.userName);
 
         res.status(200).json({
@@ -363,13 +635,11 @@ const getMarketBatches = async (req, res) => {
         
         let query = { isOnMarket: true, availableQuantity: { $gt: 0 } };
         
-        // Add filters
         if (supplier) query.supplier = { $regex: supplier, $options: 'i' };
         if (minPrice) query.pricePerKg = { ...query.pricePerKg, $gte: parseFloat(minPrice) };
         if (maxPrice) query.pricePerKg = { ...query.pricePerKg, $lte: parseFloat(maxPrice) };
         if (minQuantity) query.availableQuantity = { ...query.availableQuantity, $gte: parseFloat(minQuantity) };
 
-        // Create sort object
         const sortObj = {};
         sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
@@ -377,7 +647,7 @@ const getMarketBatches = async (req, res) => {
             .sort(sortObj)
             .limit(limit * 1)
             .skip((page - 1) * limit)
-            .select('-__v'); // Exclude version field
+            .select('-__v');
 
         const total = await Batch.countDocuments(query);
 
@@ -429,29 +699,67 @@ const getMarketBatchById = async (req, res) => {
     }
 };
 
-// Update batch quantity (for sales/purchases)
+
 const updateBatchQuantity = async (req, res) => {
+    console.log('🚀 NEW ORDER CREATION FUNCTION ACTIVATED');
+    console.log('Route: POST /:id/purchase');
+    console.log('Batch ID:', req.params.id);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
     try {
         const batchId = req.params.id;
-        const { quantityPurchased, buyerUserId, buyerUserName } = req.body;
+        const { 
+            quantityPurchased, 
+            buyerUserId, 
+            buyerUserName, 
+            buyerEmail,
+            buyerContact,
+            deliveryAddress,
+            notes 
+        } = req.body;
 
+        // Validation
         if (!quantityPurchased || quantityPurchased <= 0) {
+            console.log('❌ Validation failed: Invalid quantity');
             return res.status(400).json({
                 success: false,
                 message: 'Quantity purchased must be greater than 0'
             });
         }
 
+        if (!buyerUserId || !buyerUserName || !buyerEmail) {
+            console.log('❌ Validation failed: Missing buyer info');
+            return res.status(400).json({
+                success: false,
+                message: 'Buyer information (userId, userName, email) is required'
+            });
+        }
+
+        // CRITICAL: Check if Order model is imported
+        if (typeof Order === 'undefined') {
+            console.log('❌ CRITICAL ERROR: Order model not imported!');
+            console.log('Add this to top of your controller: const Order = require("../models/Order");');
+            return res.status(500).json({
+                success: false,
+                message: 'Server error: Order model not available. Check server logs.'
+            });
+        }
+        console.log('✅ Order model is available');
+
+        // Find batch
         const batch = await Batch.findById(batchId);
         
         if (!batch) {
+            console.log('❌ Batch not found with ID:', batchId);
             return res.status(404).json({
                 success: false,
                 message: 'Batch not found'
             });
         }
+        console.log('✅ Batch found:', batch.batchId);
 
         if (!batch.isOnMarket) {
+            console.log('❌ Batch not on market');
             return res.status(400).json({
                 success: false,
                 message: 'Batch is not available on market'
@@ -459,22 +767,73 @@ const updateBatchQuantity = async (req, res) => {
         }
 
         if (batch.availableQuantity < quantityPurchased) {
+            console.log('❌ Insufficient quantity');
             return res.status(400).json({
                 success: false,
                 message: `Insufficient quantity. Available: ${batch.availableQuantity}kg`
             });
         }
+        console.log('✅ Quantity validation passed');
 
-        const newAvailableQuantity = batch.availableQuantity - quantityPurchased;
+        const totalAmount = quantityPurchased * batch.pricePerKg;
+        console.log('💰 Total amount calculated:', totalAmount);
+
+        // Generate unique order ID
+        const orderId = 'ORD' + Date.now() + Math.floor(Math.random() * 1000);
+        console.log('🏷️ Generated order ID:', orderId);
         
-        // Update available quantity
+        // Prepare order data
+        const orderData = {
+            orderId: orderId,
+            batchId: batch._id,
+            batchNumber: batch.batchId,
+            sellerId: batch.userId,
+            sellerName: batch.userName,
+            buyerId: buyerUserId,
+            buyerName: buyerUserName,
+            buyerEmail: buyerEmail,
+            buyerContact: buyerContact || '',
+            quantityOrdered: quantityPurchased,
+            pricePerKg: batch.pricePerKg,
+            totalAmount: totalAmount,
+            deliveryAddress: deliveryAddress || {},
+            notes: notes || ''
+        };
+
+        console.log('📦 Creating order with data:', JSON.stringify(orderData, null, 2));
+
+        // CREATE THE ORDER - THIS IS THE KEY PART!
+        const newOrder = new Order(orderData);
+        console.log('📝 Order instance created');
+
+        const savedOrder = await newOrder.save();
+        console.log('🎉 ORDER SUCCESSFULLY SAVED TO DATABASE!');
+        console.log('Saved order ID:', savedOrder._id);
+        console.log('Saved order number:', savedOrder.orderId);
+
+        await sendOrderNotificationToSeller(savedOrder, batch);
+
+        
+        if (!savedOrder.orderId) {
+            console.log('❌ CRITICAL: Order saved but orderId is missing!');
+            return res.status(500).json({
+                success: false,
+                message: 'Error: Order created but ID generation failed'
+            });
+        }
+
+        // Update batch quantity
+        const newAvailableQuantity = batch.availableQuantity - quantityPurchased;
+        console.log('📊 Updating batch quantity from', batch.availableQuantity, 'to', newAvailableQuantity);
+        
         const updateData = {
             availableQuantity: newAvailableQuantity
         };
 
-        // If sold out, remove from market
+        // Remove from market if sold out
         if (newAvailableQuantity === 0) {
             updateData.isOnMarket = false;
+            console.log('🚫 Batch sold out - removing from market');
         }
 
         const updatedBatch = await Batch.findByIdAndUpdate(
@@ -482,23 +841,44 @@ const updateBatchQuantity = async (req, res) => {
             updateData,
             { new: true, runValidators: true }
         );
+        console.log('✅ Batch quantity updated successfully');
 
+        // Prepare response data with ORDER included
+        const responseData = {
+            order: savedOrder,          // ← THIS IS WHAT WAS MISSING!
+            batch: updatedBatch,
+            purchaseDetails: {
+                quantityPurchased,
+                totalAmount: totalAmount,
+                remainingQuantity: newAvailableQuantity
+            }
+        };
+
+        console.log('🎯 Response data structure check:');
+        console.log('- Has order?', !!responseData.order);
+        console.log('- Order ID:', responseData.order?.orderId);
+        console.log('- Has batch?', !!responseData.batch);
+        console.log('- Has purchaseDetails?', !!responseData.purchaseDetails);
+
+        const successMessage = newAvailableQuantity === 0 ? 
+            'Order created successfully - Batch sold out and removed from market' : 
+            'Order created successfully';
+
+        console.log('🎉 SENDING SUCCESS RESPONSE:', successMessage);
+
+        // Send success response
         res.status(200).json({
             success: true,
-            message: newAvailableQuantity === 0 ? 'Batch sold out and removed from market' : 'Quantity updated successfully',
-            data: {
-                batch: updatedBatch,
-                purchaseDetails: {
-                    quantityPurchased,
-                    totalAmount: quantityPurchased * batch.pricePerKg,
-                    remainingQuantity: newAvailableQuantity
-                }
-            }
+            message: successMessage,  // ← THIS MESSAGE WILL CHANGE!
+            data: responseData
         });
+
     } catch (error) {
+        console.log('💥 ERROR in order creation:', error.message);
+        console.log('📄 Error stack:', error.stack);
         res.status(500).json({
             success: false,
-            message: 'Error updating batch quantity',
+            message: 'Error processing order',
             error: error.message
         });
     }
@@ -680,8 +1060,283 @@ const getBatchesByUser = async (req, res) => {
     }
 };
 
+// Order Management Functions
+
+// Get all orders for batches owned by a specific user (seller)
+const getOrdersForSeller = async (req, res) => {
+    try {
+        const sellerId = req.params.sellerId;
+        const { 
+            page = 1, 
+            limit = 10, 
+            status, 
+            sortBy = 'orderDate',
+            sortOrder = 'desc',
+            startDate,
+            endDate
+        } = req.query;
+
+        let query = { sellerId };
+        
+        if (status) {
+            query.status = status;
+        }
+
+        if (startDate || endDate) {
+            query.orderDate = {};
+            if (startDate) query.orderDate.$gte = new Date(startDate);
+            if (endDate) query.orderDate.$lte = new Date(endDate);
+        }
+
+        const sortObj = {};
+        sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+        const orders = await Order.find(query)
+            .populate('batchId', 'batchId supplier aflatoxin moisture_maize_grain')
+            .sort(sortObj)
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const total = await Order.countDocuments(query);
+
+        const stats = await Order.aggregate([
+            { $match: { sellerId } },
+            { 
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 },
+                    totalAmount: { $sum: '$totalAmount' }
+                }
+            }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: orders,
+            statistics: stats,
+            pagination: {
+                currentPage: parseInt(page),
+                totalPages: Math.ceil(total / limit),
+                totalItems: total,
+                itemsPerPage: parseInt(limit)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching orders',
+            error: error.message
+        });
+    }
+};
+
+// Update order status
+const updateOrderStatus = async (req, res) => {
+    try {
+        const orderId = req.params.orderId;
+        const { status, sellerNotes, trackingNumber, estimatedDelivery } = req.body;
+        const sellerId = req.body.sellerId;
+
+        const validStatuses = ['pending', 'confirmed', 'rejected', 'preparing', 'shipped', 'delivered', 'cancelled'];
+        
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid status. Valid statuses are: ${validStatuses.join(', ')}`
+            });
+        }
+
+        const order = await Order.findOne({ orderId });
+        
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        if (order.sellerId !== sellerId) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to update this order'
+            });
+        }
+
+        const updateData = {
+            status,
+            sellerNotes: sellerNotes || order.sellerNotes,
+            trackingNumber: trackingNumber || order.trackingNumber,
+            estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : order.estimatedDelivery
+        };
+
+        const now = new Date();
+        switch (status) {
+            case 'confirmed':
+                updateData.confirmedAt = now;
+                break;
+            case 'shipped':
+                updateData.shippedAt = now;
+                break;
+            case 'delivered':
+                updateData.deliveredAt = now;
+                break;
+        }
+
+        const updatedOrder = await Order.findOneAndUpdate(
+            { orderId },
+            updateData,
+            { new: true, runValidators: true }
+        ).populate('batchId', 'batchId supplier');
+
+        if ((status === 'cancelled' || status === 'rejected') && order.status === 'pending') {
+            await Batch.findByIdAndUpdate(
+                order.batchId,
+                { 
+                    $inc: { availableQuantity: order.quantityOrdered },
+                    isOnMarket: true
+                }
+            );
+        }
+
+        await sendOrderStatusUpdateToBuyer(
+            updatedOrder, 
+            status, 
+            sellerNotes, 
+            trackingNumber, 
+            estimatedDelivery
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `Order status updated to ${status}`,
+            data: updatedOrder
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error updating order status',
+            error: error.message
+        });
+    }
+};
+
+// Get specific order details
+const getOrderDetails = async (req, res) => {
+    try {
+        const orderId = req.params.orderId;
+        const sellerId = req.query.sellerId;
+
+        const order = await Order.findOne({ orderId })
+            .populate('batchId', 'batchId supplier aflatoxin moisture_maize_grain broken_kernels_percent_maize_grain foreign_matter_percent_maize_grain');
+        
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        if (sellerId && order.sellerId !== sellerId) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to view this order'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: order
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching order details',
+            error: error.message
+        });
+    }
+};
+
+// Get orders for a specific batch
+const getOrdersForBatch = async (req, res) => {
+    try {
+        const batchId = req.params.batchId;
+        const sellerId = req.query.sellerId;
+
+        const batch = await Batch.findById(batchId);
+        if (!batch) {
+            return res.status(404).json({
+                success: false,
+                message: 'Batch not found'
+            });
+        }
+
+        if (sellerId && batch.userId !== sellerId) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to view orders for this batch'
+            });
+        }
+
+        const orders = await Order.find({ batchId })
+            .sort({ orderDate: -1 });
+
+        res.status(200).json({
+            success: true,
+            data: orders,
+            batch: {
+                batchId: batch.batchId,
+                supplier: batch.supplier,
+                totalQuantity: batch.quantity,
+                availableQuantity: batch.availableQuantity
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching batch orders',
+            error: error.message
+        });
+    }
+};
+
+// Get orders for buyer
+const getOrdersForBuyer = async (req, res) => {
+    try {
+        const buyerId = req.params.buyerId;
+        const { page = 1, limit = 10, status } = req.query;
+
+        let query = { buyerId };
+        if (status) query.status = status;
+
+        const orders = await Order.find(query)
+            .populate('batchId', 'batchId supplier aflatoxin moisture_maize_grain')
+            .sort({ orderDate: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const total = await Order.countDocuments(query);
+
+        res.status(200).json({
+            success: true,
+            data: orders,
+            pagination: {
+                currentPage: parseInt(page),
+                totalPages: Math.ceil(total / limit),
+                totalItems: total,
+                itemsPerPage: parseInt(limit)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching buyer orders',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
-    // Original functions
+    // Original batch functions
     createBatch,
     getAllBatches,
     getBatchById,
@@ -690,10 +1345,17 @@ module.exports = {
     deleteBatch,
     getBatchesByUser,
     
-    // New marketplace functions
+    // Marketplace functions
     putBatchOnMarket,
     removeBatchFromMarket,
     getMarketBatches,
     getMarketBatchById,
-    updateBatchQuantity
+    updateBatchQuantity,
+    
+    // Order management functions
+    getOrdersForSeller,
+    updateOrderStatus,
+    getOrderDetails,
+    getOrdersForBatch,
+    getOrdersForBuyer
 };
