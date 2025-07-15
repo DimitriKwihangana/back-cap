@@ -77,7 +77,6 @@ const loginUser = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
     try {
-        // Use nested population to properly fetch all related data
         const users = await User.find()
             .select('-password')
             .populate({
@@ -100,7 +99,6 @@ const getAllUsers = async (req, res) => {
             const updatedCourses = user.courses
                 .filter(course => course.courseId)
                 .map(course => {
-                    // Calculate course progress: percentage of modules completed.
                     const totalModules = course.modules ? course.modules.length : 0;
                     const completedModulesCount = course.modules
                         ? course.modules.filter(mod => mod.completed).length
@@ -109,11 +107,8 @@ const getAllUsers = async (req, res) => {
                         ? (completedModulesCount / totalModules) * 100
                         : 0;
 
-                    // Build module-level details.
                     const updatedModules = (course.modules || []).map(mod => {
-                        // Get the full populated module data
                         const moduleDoc = mod.moduleId;
-                        // Calculate module progress based on submodules.
                         const totalSubmodules = moduleDoc?.submodules
                             ? moduleDoc.submodules.length
                             : (mod.submodules ? mod.submodules.length : 0);
@@ -124,10 +119,9 @@ const getAllUsers = async (req, res) => {
                             ? (completedSubmodulesCount / totalSubmodules) * 100
                             : 0;
 
-                        // Calculate if user can take quiz based on attempts and cooldown period
                         let canTakeQuiz = true;
                         if (mod.quizData && mod.quizData.attempts >= 2 && mod.quizData.lastAttempt) {
-                            const cooldownPeriod = 1 * 60 * 1000; // 10 minutes in milliseconds
+                            const cooldownPeriod = 10 * 60 * 1000;
                             const timeSinceLastAttempt = now - new Date(mod.quizData.lastAttempt).getTime();
                             canTakeQuiz = timeSinceLastAttempt >= cooldownPeriod;
                         }
@@ -166,6 +160,8 @@ const getAllUsers = async (req, res) => {
                 username: user.username,
                 email: user.email,
                 role: user.role,
+                type: user.type || null,
+                organisation: user.organisation || null,
                 courses: updatedCourses
             };
         });
@@ -179,6 +175,7 @@ const getAllUsers = async (req, res) => {
         res.status(500).json({ message: error.message, status: false });
     }
 };
+
 const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
