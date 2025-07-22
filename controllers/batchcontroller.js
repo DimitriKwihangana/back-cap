@@ -1,11 +1,11 @@
-// Enhanced Controller with Email Notifications + Order Management - FIXED VERSION
+
 const Batch = require('../models/batch');
 const User = require('../models/User'); 
 const Order = require('../models/Order');
 const nodemailer = require('nodemailer');
 
 // Email configuration
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
     service: 'gmail',
     auth: {
         user: process.env.EMAIL,
@@ -13,27 +13,225 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-const sendOrderNotificationToSeller = async (order, batch) => {
+
+const sendBatchTestResultsEmail = async (batchData) => {
     try {
-        // Get seller email - check if we have seller's email in User collection
-        let sellerEmail = null;
         
-        try {
-            const seller = await User.findOne({ 
-                $or: [
-                    { _id: batch.userId },
-                    { name: batch.userName }
-                ]
-            });
-            sellerEmail = seller?.email;
-        } catch (err) {
-            console.log('Could not find seller in User collection, using fallback');
+        const userEmail = batchData.userName;
+
+        
+        if (!userEmail || !userEmail.includes('@')) {
+            console.log('⚠️ Invalid email address for batch test results:', batchData.batchId);
+            console.log('Email provided:', userEmail);
+            return;
         }
 
-        // If we don't have seller email, we can't send email
-        if (!sellerEmail) {
-            console.log('⚠️ No seller email found for batch:', batch.batchId);
-            console.log('Seller ID:', batch.userId, 'Seller Name:', batch.userName);
+        
+        const getSafetyInfo = (aflatoxin) => {
+            const level = parseFloat(aflatoxin) || 0;
+            
+            if (level >= 0 && level <= 5) {
+                return { 
+                    level: 'Safe for Children', 
+                    icon: '✅', 
+                    color: '#059669', 
+                    bgColor: '#d1fae5',
+                    message: 'Excellent! Your grain meets the highest safety standards and is safe for all consumers including children.' 
+                };
+            } else if (level > 5 && level <= 10) {
+                return { 
+                    level: 'Adults Only', 
+                    icon: '⚠️', 
+                    color: '#d97706', 
+                    bgColor: '#fef3c7',
+                    message: 'Your grain is safe for adult consumption but should not be given to children.' 
+                };
+            } else if (level > 10 && level <= 20) {
+                return { 
+                    level: 'Animal Feed Only', 
+                    icon: '🔶', 
+                    color: '#ea580c', 
+                    bgColor: '#fed7aa',
+                    message: 'This grain should only be used for animal feed and not for human consumption.' 
+                };
+            } else {
+                return { 
+                    level: 'Not Safe for Use', 
+                    icon: '🚨', 
+                    color: '#dc2626', 
+                    bgColor: '#fecaca',
+                    message: 'This grain does not meet safety standards and should not be used for consumption or feed.' 
+                };
+            }
+        };
+
+        const safetyInfo = getSafetyInfo(batchData.aflatoxin);
+
+        const emailSubject = `🧪 Batch Test Results - ${batchData.batchId}`;
+        const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                    .batch-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6; }
+                    .safety-alert { padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; background: ${safetyInfo.bgColor}; border: 2px solid ${safetyInfo.color}; }
+                    .results-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+                    .result-item { background: white; padding: 15px; border-radius: 6px; text-align: center; border: 1px solid #e5e7eb; }
+                    .parameter-name { font-weight: bold; color: #374151; margin-bottom: 5px; }
+                    .parameter-value { font-size: 18px; font-weight: bold; color: #1f2937; }
+                    .parameter-unit { font-size: 14px; color: #6b7280; }
+                    .cta-button { display: inline-block; background: #3b82f6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
+                    .summary-box { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+                    .highlight { color: #3b82f6; font-weight: bold; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🧪 Batch Test Results Complete</h1>
+                        <p>Your grain quality analysis is ready</p>
+                    </div>
+                    
+                    <div class="content">
+                        <!-- Safety Alert -->
+                        <div class="safety-alert">
+                            <div style="font-size: 48px; margin-bottom: 10px;">${safetyInfo.icon}</div>
+                            <h2 style="margin: 10px 0; color: ${safetyInfo.color};">${safetyInfo.level}</h2>
+                            <p style="margin: 10px 0; color: #374151;">${safetyInfo.message}</p>
+                        </div>
+
+                        <!-- Batch Information -->
+                        <div class="batch-info">
+                            <h3>Batch Information</h3>
+                            <p><strong>Batch ID:</strong> <span class="highlight">${batchData.batchId}</span></p>
+                            <p><strong>Supplier:</strong> ${batchData.supplier}</p>
+                            <p><strong>Test Date:</strong> ${new Date(batchData.date).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric'
+                            })}</p>
+                            <p><strong>Tested by:</strong> ${userEmail}</p>
+                        </div>
+
+                        <!-- Test Results Grid -->
+                        <h3>Detailed Test Results</h3>
+                        <div class="results-grid">
+                            <div class="result-item">
+                                <div class="parameter-name">Moisture Content</div>
+                                <div class="parameter-value">${batchData.moisture_maize_grain}<span class="parameter-unit">%</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Aflatoxin Level</div>
+                                <div class="parameter-value" style="color: ${safetyInfo.color};">${batchData.aflatoxin}<span class="parameter-unit">ppb</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Immature Grains</div>
+                                <div class="parameter-value">${batchData.Immaturegrains}<span class="parameter-unit">%</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Discolored Grains</div>
+                                <div class="parameter-value">${batchData.Discolored_grains}<span class="parameter-unit">%</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Broken Kernels</div>
+                                <div class="parameter-value">${batchData.broken_kernels_percent_maize_grain}<span class="parameter-unit">%</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Foreign Matter</div>
+                                <div class="parameter-value">${batchData.foreign_matter_percent_maize_grain}<span class="parameter-unit">%</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Pest Damaged</div>
+                                <div class="parameter-value">${batchData.pest_damaged}<span class="parameter-unit">%</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Rotten Grains</div>
+                                <div class="parameter-value">${batchData.rotten}<span class="parameter-unit">%</span></div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Live Infestation</div>
+                                <div class="parameter-value">${batchData.Liveinfestation === 1 ? 'Yes' : 'No'}</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="parameter-name">Abnormal Odours</div>
+                                <div class="parameter-value">${batchData.abnormal_odours_maize_grain === 1 ? 'Present' : 'None'}</div>
+                            </div>
+                        </div>
+
+                        <!-- Summary and Recommendations -->
+                        <div class="summary-box">
+                            <h3>Quality Summary</h3>
+                            <p>Your grain batch <strong>${batchData.batchId}</strong> has been thoroughly tested and analyzed. The most critical factor for food safety is the aflatoxin level, which measures at <strong>${batchData.aflatoxin} ppb</strong>.</p>
+                            
+                            ${batchData.aflatoxin <= 10 ? `
+                            <p style="color: #059669;"><strong>✅ Good News:</strong> Your grain meets acceptable safety standards for human consumption. Consider listing it on our marketplace to reach potential buyers.</p>
+                            ` : `
+                            <p style="color: #dc2626;"><strong>⚠️ Important:</strong> Due to elevated aflatoxin levels, this grain has limited use applications. Please follow the safety guidelines above.</p>
+                            `}
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/batches" class="cta-button">
+                                View Your Batches
+                            </a>
+                            ${batchData.aflatoxin <= 10 ? `
+                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/marketplace/list" class="cta-button" style="background: #059669; margin-left: 10px;">
+                                List on Marketplace
+                            </a>
+                            ` : ''}
+                        </div>
+
+                        <!-- Footer Information -->
+                        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                            <h4 style="margin-top: 0; color: #374151;">📋 Next Steps</h4>
+                            <ul style="color: #6b7280; padding-left: 20px;">
+                                <li>Review your batch results in your dashboard</li>
+                                <li>Store this information for your records</li>
+                                ${batchData.aflatoxin <= 10 ? '<li>Consider listing high-quality batches on our marketplace</li>' : '<li>Follow appropriate handling guidelines for this grain</li>'}
+                                <li>Contact our support team if you have questions about these results</li>
+                            </ul>
+                        </div>
+
+                        <p style="color: #6b7280; font-size: 14px; margin-top: 30px; text-align: center;">
+                            Thank you for using our grain quality testing service. These results are based on standardized testing procedures and current food safety guidelines.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        await transporter.sendMail({
+            from: `"Grain Quality Lab" <${process.env.EMAIL_USER}>`,
+            to: userEmail,
+            subject: emailSubject,
+            html: emailHtml
+        });
+
+        console.log('✅ Batch test results email sent to user:', userEmail);
+
+    } catch (error) {
+        console.error('❌ Error sending batch test results email:', error);
+        // Don't throw error to prevent batch creation from failing
+    }
+};
+
+// Send order notification to seller
+// Note: userName field contains the seller's email address
+const sendOrderNotificationToSeller = async (order, batch) => {
+    try {
+        // userName contains the email address
+        const sellerEmail = batch.userName;
+
+        // Basic email validation
+        if (!sellerEmail || !sellerEmail.includes('@')) {
+            console.log('⚠️ Invalid seller email address for batch:', batch.batchId);
+            console.log('Email provided:', sellerEmail);
             return;
         }
 
@@ -298,6 +496,7 @@ const sendOrderStatusUpdateToBuyer = async (order, newStatus, sellerNotes = '', 
         // Don't throw error to prevent status update from failing
     }
 };
+
 // Function to send notification emails
 const sendMarketListingNotification = async (batch, listingUser) => {
     try {
@@ -419,7 +618,7 @@ const getSafetyBadge = (aflatoxin) => {
     }
 };
 
-// Create a new batch
+// Create a new batch - UPDATED with test results email
 const createBatch = async (req, res) => {
     try {
         const batchData = {
@@ -493,13 +692,18 @@ const createBatch = async (req, res) => {
         const newBatch = new Batch(batchData);
         const savedBatch = await newBatch.save();
 
+        // 🆕 NEW: Send batch test results email to the user
+        await sendBatchTestResultsEmail(batchData);
+
+        // Send marketplace notification if listed on market
         if (req.body.isOnMarket) {
+            // For marketplace notifications, use the actual userName (email) as the listing user identifier
             await sendMarketListingNotification(savedBatch, req.body.userName);
         }
 
         res.status(201).json({
             success: true,
-            message: 'Batch created successfully',
+            message: 'Batch created successfully and test results email sent',
             data: savedBatch
         });
     } catch (error) {
