@@ -4,7 +4,7 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const nodemailer = require('nodemailer');
 
-// Email configuration
+
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {

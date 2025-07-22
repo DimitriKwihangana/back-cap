@@ -28,9 +28,14 @@ const TestSchema = new mongoose.Schema({
   laboratoryEmail: {
     type: String,
     required: true,
-  }
+  },
+  tested: {
+    type: Boolean,
+    default: false,
+    required: true, 
+  },
 
-  // Add other fields for grain characteristics here if needed
+  
 });
 
 // Export the model

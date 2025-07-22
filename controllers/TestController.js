@@ -1,10 +1,9 @@
 const Test = require('../models/Tests'); 
 const { sendBatchTestingNotification } = require('../utils/EmailServise'); // Adjust path as needed
 
-// Create a new test batch
 const createTest = async (req, res) => {
     try {
-        const { batchId, supplier, date, userId, userName, laboratoryEmail } = req.body;
+        const { batchId, supplier, date, userId, userName, laboratoryEmail, tested = false } = req.body;
 
         // Validate required fields
         if (!batchId || !supplier || !date || !userId || !userName || !laboratoryEmail) {
@@ -21,13 +20,14 @@ const createTest = async (req, res) => {
             date,
             userId,
             userName,
-            laboratoryEmail
+            laboratoryEmail,
+            tested 
         });
 
-        // Save to database
+        
         const savedTest = await newTest.save();
 
-        // Send email notification to laboratory
+       
         await sendBatchTestingNotification(laboratoryEmail, userName, batchId, supplier, date);
 
         res.status(201).json({
@@ -45,7 +45,6 @@ const createTest = async (req, res) => {
         });
     }
 };
-
 // Get all tests
 const getAllTests = async (req, res) => {
     try {
