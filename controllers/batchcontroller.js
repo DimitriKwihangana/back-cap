@@ -1506,10 +1506,18 @@ const getOrdersForBatch = async (req, res) => {
 // Get orders for buyer
 const getOrdersForBuyer = async (req, res) => {
     try {
-        const buyerId = req.params.buyerId;
+        const buyerEmail = req.params.buyerEmail;
         const { page = 1, limit = 10, status } = req.query;
 
-        let query = { buyerId };
+        // Basic email validation
+        if (!buyerEmail || !buyerEmail.includes('@')) {
+            return res.status(400).json({
+                success: false,
+                message: 'Valid buyer email is required'
+            });
+        }
+
+        let query = { buyerEmail };
         if (status) query.status = status;
 
         const orders = await Order.find(query)

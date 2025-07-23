@@ -22,37 +22,26 @@ const {
     getOrdersForBuyer
 } = require('../controllers/batchcontroller');
 
-// ============================================================================
-// ORDER MANAGEMENT ROUTES
-// ============================================================================
 
-// Order management for sellers
-router.get('/orders/seller/:sellerId', getOrdersForSeller);        // GET /api/batches/orders/seller/:sellerId - Get all orders for seller
-router.put('/orders/:orderId/status', updateOrderStatus);          // PUT /api/batches/orders/:orderId/status - Update order status
-router.get('/orders/:orderId', getOrderDetails);                   // GET /api/batches/orders/:orderId - Get specific order details
-router.get('/orders/batch/:batchId', getOrdersForBatch);           // GET /api/batches/orders/batch/:batchId - Get orders for specific batch
+router.get('/orders/seller/:sellerId', getOrdersForSeller);        
+router.put('/orders/:orderId/status', updateOrderStatus);          
+router.get('/orders/:orderId', getOrderDetails);                   
+router.get('/orders/batch/:batchId', getOrdersForBatch);           
 
 // Order tracking for buyers
-router.get('/orders/buyer/:buyerId', getOrdersForBuyer);           // GET /api/batches/orders/buyer/:buyerId - Get orders for buyer
+router.get('/orders/buyer/:buyerEmail', getOrdersForBuyer);          
 
-// ============================================================================
-// MARKETPLACE ROUTES
-// ============================================================================
 
-router.get('/market', getMarketBatches);                           // GET /api/batches/market - Get all market batches
-router.get('/market/:id', getMarketBatchById);                     // GET /api/batches/market/:id - Get specific market batch
-router.put('/:id/market', putBatchOnMarket);                       // PUT /api/batches/:id/market - List batch on market
-router.delete('/:id/market', removeBatchFromMarket);               // DELETE /api/batches/:id/market - Remove from market
-router.post('/:id/purchase', updateBatchQuantity);                 // POST /api/batches/:id/purchase - Purchase quantity (creates order)
+router.get('/market', getMarketBatches);                          
+router.get('/market/:id', getMarketBatchById);                    
+router.put('/:id/market', putBatchOnMarket);                      
+router.delete('/:id/market', removeBatchFromMarket);              
+router.post('/:id/purchase', updateBatchQuantity);                
 
-// ============================================================================
-// EXISTING BATCH ROUTES
-// ============================================================================
 
-// Get batches by user
 router.get('/user/:userId?', getBatchesByUser);
 
-// Get batch by custom batchId
+
 router.get('/batch/:batchId', getBatchByBatchId);
 
 // Basic CRUD routes

@@ -7,18 +7,13 @@ const {
     getTestsByUserId,
     updateTest,
     deleteTest
-} = require('../controllers/TestController'); // Adjust path as needed
+} = require('../controllers/TestController'); 
 
 
 router.post('/', createTest);
-
-
 router.get('/', getAllTests);
-
 router.get('/:id', getTestById);
-
 router.get('/user/:userId', getTestsByUserId);
-
 router.put('/:id', updateTest);
 router.delete('/:id', deleteTest);
 
