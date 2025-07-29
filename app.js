@@ -16,6 +16,7 @@ const finalQuizRoutes = require('./routes/finalQuizRoutes');
 const progressRoute = require('./routes/progressRoute'); // Adjust pat
 const batchRoutes = require('./routes/batchRoutes')
 const TestRoutes = require('./routes/TestsRoutes'); 
+const Batch2Routes = require('./routes/batch2Routes'); 
 
 const cors = require('cors');
 const setupSwagger = require('./utils/Swagger');
@@ -81,7 +82,9 @@ app.use('/api/discussions', DiscussionRouter);
 app.use('/', finalQuizRoutes);
 app.use('/progress', progressRoute);
 app.use('/api/batches', batchRoutes);
+app.use('/api/batch2', Batch2Routes); 
 app.use('/api/tests', TestRoutes); 
+
 
 
 
