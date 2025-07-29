@@ -22,7 +22,6 @@ const cors = require('cors');
 const setupSwagger = require('./utils/Swagger');
 const DiscussionRouter = require('./routes/discussionRoutes');
 
-// Load environment variables
 dotenv.config();
 
 // Initialize Express
@@ -61,14 +60,6 @@ db.connect();
 
 
 
-// app.use(cors({
-//     origin: (origin, callback) => {
-//       callback(null, true); // Allows all origins dynamically
-//     },
-//     credentials: true
-//   }));
-  
-// Define Routes
 app.use('/', userRouter);
 app.use('/', SubModuleRouter);
 app.use('/', ModuleRouter);

@@ -1,10 +1,10 @@
-
 const Batch = require('../models/batch');
 const User = require('../models/User'); 
 const Order = require('../models/Order');
 const nodemailer = require('nodemailer');
+const twilio = require('twilio');
 
-
+// Email transporter
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -13,20 +13,79 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+// Twilio client
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// SMS Helper Functions - All messages go to +250782272629
+const ADMIN_PHONE = '+250782272629';
+
+const sendSMS = async (message) => {
+    try {
+        const smsResult = await twilioClient.messages.create({
+            body: message,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: ADMIN_PHONE
+        });
+
+        console.log('✅ SMS sent successfully to admin:', smsResult.sid);
+    } catch (error) {
+        console.error('❌ Error sending SMS:', error.message);
+        // Don't throw error to prevent main functions from failing
+    }
+};
+
+const sendBatchTestResultsSMS = async (batchData) => {
+    const getSafetyLevel = (aflatoxin) => {
+        const level = parseFloat(aflatoxin) || 0;
+        if (level >= 0 && level <= 5) return 'Safe for Children';
+        else if (level > 5 && level <= 10) return 'Adults Only';
+        else if (level > 10 && level <= 20) return 'Animal Feed Only';
+        else return 'Not Safe';
+    };
+
+    const safetyLevel = getSafetyLevel(batchData.aflatoxin);
+    const message = `Batch ${batchData.batchId} test complete. Aflatoxin: ${batchData.aflatoxin}ppb - ${safetyLevel}. Check email for full results.`;
+    
+    await sendSMS(message);
+};
+
+const sendOrderNotificationSMS = async (order, batch) => {
+    const message = `New order ${order.orderId} for batch ${batch.batchId}. Qty: ${order.quantityOrdered}kg, Total: ${order.totalAmount.toLocaleString()} Rwf. Check dashboard to confirm.`;
+    
+    await sendSMS(message);
+};
+
+const sendOrderStatusUpdateSMS = async (order, newStatus) => {
+    const statusMessages = {
+        confirmed: 'Order confirmed and being prepared.',
+        shipped: 'Order shipped. Check email for tracking.',
+        delivered: 'Order delivered successfully!',
+        rejected: 'Order rejected. Check email for details.',
+        cancelled: 'Order cancelled.'
+    };
+
+    const statusMsg = statusMessages[newStatus] || `Status: ${newStatus}`;
+    const message = `Order ${order.orderId} update: ${statusMsg}`;
+    
+    await sendSMS(message);
+};
+
+const sendMarketListingSMS = async (batch) => {
+    const message = `New grain batch ${batch.batchId} available. Price: ${batch.pricePerKg} Rwf/kg, Qty: ${batch.availableQuantity}kg. Check marketplace.`;
+    
+    await sendSMS(message);
+};
 
 const sendBatchTestResultsEmail = async (batchData) => {
     try {
-        
         const userEmail = batchData.userName;
 
-        
         if (!userEmail || !userEmail.includes('@')) {
             console.log('⚠️ Invalid email address for batch test results:', batchData.batchId);
             console.log('Email provided:', userEmail);
             return;
         }
 
-        
         const getSafetyInfo = (aflatoxin) => {
             const level = parseFloat(aflatoxin) || 0;
             
@@ -215,20 +274,19 @@ const sendBatchTestResultsEmail = async (batchData) => {
 
         console.log('✅ Batch test results email sent to user:', userEmail);
 
+        // Send SMS notification to admin
+        await sendBatchTestResultsSMS(batchData);
+
     } catch (error) {
         console.error('❌ Error sending batch test results email:', error);
-        // Don't throw error to prevent batch creation from failing
     }
 };
 
-// Send order notification to seller
-// Note: userName field contains the seller's email address
+// Send order notification to seller (updated with SMS)
 const sendOrderNotificationToSeller = async (order, batch) => {
     try {
-        // userName contains the email address
         const sellerEmail = batch.userName;
 
-        // Basic email validation
         if (!sellerEmail || !sellerEmail.includes('@')) {
             console.log('⚠️ Invalid seller email address for batch:', batch.batchId);
             console.log('Email provided:', sellerEmail);
@@ -343,13 +401,15 @@ const sendOrderNotificationToSeller = async (order, batch) => {
 
         console.log('✅ Order notification email sent to seller:', sellerEmail);
 
+        // Send SMS notification to admin
+        await sendOrderNotificationSMS(order, batch);
+
     } catch (error) {
         console.error('❌ Error sending order notification to seller:', error);
-        // Don't throw error to prevent order creation from failing
     }
 };
 
-// Function to send order status update to buyer
+// Function to send order status update to buyer (updated with SMS)
 const sendOrderStatusUpdateToBuyer = async (order, newStatus, sellerNotes = '', trackingNumber = '', estimatedDelivery = '') => {
     try {
         const statusConfig = {
@@ -491,13 +551,15 @@ const sendOrderStatusUpdateToBuyer = async (order, newStatus, sellerNotes = '', 
 
         console.log(`✅ Status update email sent to buyer: ${order.buyerEmail} (${newStatus})`);
 
+        // Send SMS notification to admin
+        await sendOrderStatusUpdateSMS(order, newStatus);
+
     } catch (error) {
         console.error('❌ Error sending status update email to buyer:', error);
-        // Don't throw error to prevent status update from failing
     }
 };
 
-// Function to send notification emails
+// Function to send notification emails (updated with SMS)
 const sendMarketListingNotification = async (batch, listingUser) => {
     try {
         const targetUsers = await User.find({
@@ -598,6 +660,9 @@ const sendMarketListingNotification = async (batch, listingUser) => {
         await Promise.all(emailPromises);
         console.log(`Notification emails sent to ${targetUsers.length} users`);
 
+        // Send SMS notification to admin
+        await sendMarketListingSMS(batch);
+
     } catch (error) {
         console.error('Error sending notification emails:', error);
     }
@@ -618,7 +683,6 @@ const getSafetyBadge = (aflatoxin) => {
     }
 };
 
-// Create a new batch - UPDATED with test results email
 const createBatch = async (req, res) => {
     try {
         const batchData = {
@@ -692,18 +756,16 @@ const createBatch = async (req, res) => {
         const newBatch = new Batch(batchData);
         const savedBatch = await newBatch.save();
 
-        // 🆕 NEW: Send batch test results email to the user
+        // Send email and SMS notifications
         await sendBatchTestResultsEmail(batchData);
 
-        // Send marketplace notification if listed on market
         if (req.body.isOnMarket) {
-            // For marketplace notifications, use the actual userName (email) as the listing user identifier
             await sendMarketListingNotification(savedBatch, req.body.userName);
         }
 
         res.status(201).json({
             success: true,
-            message: 'Batch created successfully and test results email sent',
+            message: 'Batch created successfully and notifications sent',
             data: savedBatch
         });
     } catch (error) {
@@ -903,7 +965,6 @@ const getMarketBatchById = async (req, res) => {
     }
 };
 
-
 const updateBatchQuantity = async (req, res) => {
     console.log('🚀 NEW ORDER CREATION FUNCTION ACTIVATED');
     console.log('Route: POST /:id/purchase');
@@ -1015,9 +1076,9 @@ const updateBatchQuantity = async (req, res) => {
         console.log('Saved order ID:', savedOrder._id);
         console.log('Saved order number:', savedOrder.orderId);
 
+        // Send notifications
         await sendOrderNotificationToSeller(savedOrder, batch);
 
-        
         if (!savedOrder.orderId) {
             console.log('❌ CRITICAL: Order saved but orderId is missing!');
             return res.status(500).json({
@@ -1049,7 +1110,7 @@ const updateBatchQuantity = async (req, res) => {
 
         // Prepare response data with ORDER included
         const responseData = {
-            order: savedOrder,          // ← THIS IS WHAT WAS MISSING!
+            order: savedOrder,
             batch: updatedBatch,
             purchaseDetails: {
                 quantityPurchased,
@@ -1073,7 +1134,7 @@ const updateBatchQuantity = async (req, res) => {
         // Send success response
         res.status(200).json({
             success: true,
-            message: successMessage,  // ← THIS MESSAGE WILL CHANGE!
+            message: successMessage,
             data: responseData
         });
 
@@ -1548,6 +1609,19 @@ const getOrdersForBuyer = async (req, res) => {
 };
 
 module.exports = {
+    // SMS Helper Functions
+    sendSMS,
+    sendBatchTestResultsSMS,
+    sendOrderNotificationSMS,
+    sendOrderStatusUpdateSMS,
+    sendMarketListingSMS,
+    
+    // Email functions with SMS integration
+    sendBatchTestResultsEmail,
+    sendOrderNotificationToSeller,
+    sendOrderStatusUpdateToBuyer,
+    sendMarketListingNotification,
+    
     // Original batch functions
     createBatch,
     getAllBatches,
