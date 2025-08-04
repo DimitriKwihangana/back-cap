@@ -18,8 +18,7 @@ This is the backend of **Aflaguard**, a Node.js-based platform designed to predi
 git clone https://github.com/your-org/aflaguard-backend.git
 cd aflaguard-backend
 npm install
-# or
-yarn install
+
 ```
 
 ### Environment Variables
@@ -98,7 +97,7 @@ aflaguard-backend/
 ## 👥 Contributors
 
 - Kwihangana Dimitri
-- [Your name here]
+
 
 ---
 
